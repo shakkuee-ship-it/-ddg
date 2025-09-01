@@ -1,4 +1,6 @@
-// Enhanced AIService with proper integration
+// AIService.ts
+import OpenAI from "openai";
+
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -12,188 +14,151 @@ export interface AIResponse {
 }
 
 export class AIService {
-  private apiKey = "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";
-  private baseUrl = "https://openrouter.ai/api/v1";
+  private client: OpenAI;
 
   private models = {
-    general: "qwen/qwen-2.5-72b-instruct:free",
-    creative: "anthropic/claude-3-haiku:beta",
-    code: "meta-llama/llama-3.1-8b-instruct:free",
-    knowledge: "google/gemini-flash-1.5:free"
+    auto: "deepseek/deepseek-chat-v3.1:free",
+    code: "qwen/qwen3-coder:free",
+    creative: "mistralai/mistral-nemo:free",
+    knowledge: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+    general: "deepseek/deepseek-chat-v3.1:free",
+    image: "google/gemini-2.5-flash-image-preview:free"
   };
 
-  // Enhanced spell checking with AI
-  async checkSpelling(text: string): Promise<string> {
-    if (!text.trim()) return text;
-
-    try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://pandanexus.dev",
-          "X-Title": "PandaNexus Spell Checker",
-        },
-        body: JSON.stringify({
-          model: this.models.general,
-          messages: [{
-            role: "system",
-            content: "You are a spell checker. Fix spelling, grammar, and punctuation errors. Return ONLY the corrected text, nothing else."
-          }, {
-            role: "user",
-            content: `Fix this text: ${text}`
-          }],
-          temperature: 0.1,
-          max_tokens: 500,
-          stream: false,
-        }),
-      });
-
-      if (!response.ok) throw new Error(`Spell check failed: ${response.status}`);
-      const data = await response.json();
-      return data.choices[0]?.message?.content || text;
-    } catch (error) {
-      console.error("Spell check error:", error);
-      // Fallback to basic corrections
-      return this.basicSpellFix(text);
-    }
+  constructor(apiKey: string) {
+    this.client = new OpenAI({
+      apiKey,
+      baseURL: "https://openrouter.ai/api/v1"
+    });
   }
 
-  // Basic spell corrections as fallback
-  private basicSpellFix(text: string): string {
+  private enhancedSpellCheck(text: string): string {
     if (!text) return "";
-    let corrected = text
-      .replace(/\bi\b/g, 'I')
-      .replace(/\bteh\b/g, 'the')
-      .replace(/\brecieve\b/g, 'receive')
-      .replace(/\bdefinate\b/g, 'definite')
-      .replace(/\bseperate\b/g, 'separate')
-      .replace(/\bintergrated\b/g, 'integrated')
-      .replace(/\bfrontendf\b/g, 'frontend')
-      .replace(/\bmessase\b/g, 'message')
-      .replace(/\bintergtar\b/g, 'integrate')
-      .replace(/\bstrutiyre\b/g, 'structure')
-      .replace(/\bmolre\b/g, 'more')
-      .replace(/\battactive\b/g, 'attractive')
-      .replace(/\bdeply\b/g, 'deploy')
-      .replace(/\bresonve\b/g, 'responsive')
-      .replace(/\bshahould\b/g, 'should')
-      .replace(/\baswesome\b/g, 'awesome')
-      .replace(/\bconatct\b/g, 'contact')
-      .replace(/\batrractive\b/g, 'attractive')
-      .replace(/\breponsive\b/g, 'responsive')
-      .replace(/\bfic\b/g, 'fix')
-      .replace(/\bchant\b/g, 'chat')
-      .replace(/\bbuuton\b/g, 'button');
+    const corrections: Record<string, string> = {
+      'teh': 'the', 'recieve': 'receive', 'seperate': 'separate',
+      'definately': 'definitely', 'occured': 'occurred', 'neccessary': 'necessary',
+      'accomodate': 'accommodate', 'begining': 'beginning', 'beleive': 'believe',
+      'calender': 'calendar', 'cemetary': 'cemetery', 'changable': 'changeable',
+      'collegue': 'colleague', 'comming': 'coming', 'commited': 'committed',
+      'concious': 'conscious', 'definite': 'definite', 'embarass': 'embarrass',
+      'enviroment': 'environment', 'existance': 'existence', 'experiance': 'experience',
+      'familar': 'familiar', 'finaly': 'finally', 'foriegn': 'foreign',
+      'goverment': 'government', 'grammer': 'grammar', 'independant': 'independent',
+      'intergrate': 'integrate', 'knowlege': 'knowledge', 'maintainance': 'maintenance',
+      'occassion': 'occasion', 'persue': 'pursue', 'priviledge': 'privilege',
+      'recomend': 'recommend', 'refered': 'referred', 'relevent': 'relevant',
+      'responsable': 'responsible', 'succesful': 'successful',
+      'tommorow': 'tomorrow', 'truely': 'truly', 'untill': 'until',
+      'usefull': 'useful', 'wierd': 'weird', 'writting': 'writing'
+    };
 
-    // Capitalize first letter of sentences
-    corrected = corrected.replace(/(^|[.!?]\s+)([a-z])/g, (m, p1, p2) => p1 + p2.toUpperCase());
-    
-    // Add period if missing
-    if (corrected && !/[.!?]$/.test(corrected.trim())) {
-      corrected += ".";
-    }
-    
+    let corrected = text;
+    Object.entries(corrections).forEach(([wrong, right]) => {
+      const regex = new RegExp(`\\b${wrong}\\b`, 'gi');
+      corrected = corrected.replace(regex, right);
+    });
+    corrected = corrected.replace(/\bi\b/g, 'I');
+    corrected = corrected.replace(/(^|[.!?]\s+)([a-z])/g, (m,p1,p2)=>p1+p2.toUpperCase());
+    if (corrected && !/[.!?]$/.test(corrected.trim())) corrected += ".";
     return corrected;
   }
 
-  // Enhanced AI chat with proper service routing
-  async sendMessage(messages: AIMessage[], serviceType: string = 'general'): Promise<AIResponse> {
-    // Ensure system message exists
-    if (!messages.some(m => m.role === 'system')) {
-      messages.unshift({
-        role: 'system',
-        content: "You are PandaNexus, an advanced AI assistant created by Shakeel. Provide helpful, accurate, and engaging responses. Keep responses conversational and friendly."
-      });
+  private getModel(serviceType: string, hasImage: boolean): string {
+    if (hasImage) return this.models.image;
+    switch(serviceType) {
+      case 'code': return this.models.code;
+      case 'creative': return this.models.creative;
+      case 'knowledge': return this.models.knowledge;
+      case 'general': return this.models.general;
+      default: return this.models.auto;
     }
+  }
 
-    const lastMessage = messages[messages.length - 1];
-    const isImageRequest = !!lastMessage.image || /generate.*image|create.*image|make.*image/i.test(lastMessage.content);
-    
-    // Select appropriate model based on service type
-    let selectedModel = this.models.general;
-    if (serviceType === 'code' || /code|programming|javascript|python|react/i.test(lastMessage.content)) {
-      selectedModel = this.models.code;
-    } else if (serviceType === 'creative' || /creative|story|poem|art/i.test(lastMessage.content)) {
-      selectedModel = this.models.creative;
-    } else if (serviceType === 'knowledge' || /explain|what is|how does/i.test(lastMessage.content)) {
-      selectedModel = this.models.knowledge;
-    }
-
+  async sendMessage(messages: AIMessage[], serviceType: string = 'auto'): Promise<AIResponse> {
     try {
-      // Handle image generation
-      if (isImageRequest && !lastMessage.image) {
-        const imagePrompt = lastMessage.content.replace(/generate|create|make/gi, '').trim();
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=512&height=512&seed=${Date.now()}`;
-        
+      const lastMessage = messages[messages.length - 1];
+      const hasImage = !!lastMessage.image;
+      const isImageGeneration = /generate.*image|create.*image|make.*image|draw|picture|photo/i.test(lastMessage.content);
+
+      const selectedModel = this.getModel(serviceType, hasImage);
+
+      // Image handling
+      if (isImageGeneration && !hasImage) {
+        const prompt = lastMessage.content.replace(/generate|create|make|draw/gi, '').trim();
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=768&height=768&seed=${Date.now()}&enhance=true`;
         return {
-          content: `I've generated an image for: "${imagePrompt}". Here's your custom AI-generated image!`,
+          content: `I've generated an image for: "${prompt}"`,
           model: 'Pollinations AI',
           imageUrl
         };
       }
 
-      // Format messages for API
-      const formattedMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.image ? [
-          { type: "text", text: msg.content },
-          { type: "image_url", image_url: { url: msg.image } }
-        ] : msg.content
-      }));
+      // Format messages for OpenAI client
+      const formattedMessages = [
+        { role: 'system', content: `You are PandaNexus, a helpful AI assistant.` },
+        ...messages.slice(-5).map(msg => ({
+          role: msg.role,
+          content: msg.image ? [
+            { type: "text", text: this.enhancedSpellCheck(msg.content) },
+            { type: "image_url", image_url: { url: msg.image } }
+          ] : this.enhancedSpellCheck(msg.content)
+        }))
+      ];
 
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://pandanexus.dev',
-          'X-Title': 'PandaNexus AI Chat'
-        },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: formattedMessages,
-          temperature: serviceType === 'creative' ? 0.8 : 0.7,
-          max_tokens: 1500,
-          stream: false
-        })
+      const response = await this.client.chat.completions.create({
+        model: selectedModel,
+        messages: formattedMessages,
+        temperature: serviceType === 'creative' ? 0.8 : serviceType === 'code' ? 0.3 : 0.7,
+        max_tokens: 2000,
+        top_p: 0.9,
+        frequency_penalty: 0.1,
+        presence_penalty: 0.1,
+        stream: false,
+        extra_headers: {
+          "HTTP-Referer": "https://pandanexus.dev",
+          "X-Title": "PandaNexus AI Platform"
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
+      const content = response.choices?.[0]?.message?.content;
+      if (!content) throw new Error('No content received from API');
 
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new Error('No response content received');
-      }
-
-      return {
-        content: content,
-        model: selectedModel,
-        imageUrl: lastMessage.image
-      };
-
+      return { content, model: selectedModel };
     } catch (error) {
-      console.error("AI Service Error:", error);
-      
-      // Enhanced fallback responses
-      const fallbackResponses = [
-        "I'm experiencing some technical difficulties right now. Please try again in a moment!",
-        "Sorry, I'm having trouble connecting to my AI models. Let me try to help you anyway - what specifically do you need assistance with?",
-        "There seems to be a temporary issue with my AI processing. Could you rephrase your question and I'll do my best to help?",
-        "I'm currently having some connectivity issues, but I'm still here to help! What can I assist you with today?"
-      ];
-      
-      return {
-        content: fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)],
-        model: 'Fallback System'
+      console.error("AIService Error:", error);
+      const fallback: Record<string,string> = {
+        auto: "Hi! I'm PandaNexus AI assistant. How can I help?",
+        code: "Here's a simple code example: console.log('Hello PandaNexus');",
+        creative: "Let's create something amazing! What project are you working on?",
+        knowledge: "I can provide detailed knowledge and explanations on any topic.",
+        general: "Hello! I'm PandaNexus, your AI assistant. How can I assist you today?"
       };
+      return { content: fallback[serviceType] || fallback.auto, model: 'PandaNexus Offline' };
+    }
+  }
+
+  async spellCheck(text: string): Promise<string> {
+    try {
+      const localCorrection = this.enhancedSpellCheck(text);
+      if (localCorrection !== text) return localCorrection;
+
+      const response = await this.client.chat.completions.create({
+        model: this.models.general,
+        messages: [
+          { role: 'system', content: 'Correct spelling, grammar, and punctuation. Return ONLY the corrected text.' },
+          { role: 'user', content: text }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
+      });
+
+      return response.choices?.[0]?.message?.content || localCorrection;
+    } catch (error) {
+      console.error("Spell check error:", error);
+      return this.enhancedSpellCheck(text);
     }
   }
 }
 
-export const aiService = new AIService();
+// Instantiate with your API key
+export const aiService = new AIService("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");
